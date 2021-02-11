@@ -5,7 +5,6 @@ import (
 	"context"
 	"crypto/ecdsa"
 	crand "crypto/rand"
-	"crypto/x509"
 	"database/sql"
 	"encoding/hex"
 	"fmt"
@@ -736,6 +735,7 @@ func (m *Messenger) attachIdentityImagesToChatIdentity(context chatContext, ci *
 		return err
 	}
 
+	// TODO remove the use of ProfilePicturesVisibility and create a new settings field,
 	if s.ProfilePicturesVisibility == accounts.ProfilePicturesVisibilityNone {
 		m.logger.Info(fmt.Sprintf("settings.ProfilePicturesVisibility is set to '%d', skipping attaching IdentityImages", s.ProfilePicturesVisibility))
 		return nil
@@ -788,28 +788,24 @@ func (m *Messenger) attachIdentityImagesToChatIdentity(context chatContext, ci *
 	return nil
 }
 
-func (m *Messenger) encryptIdentityImagesWithContactPubKeys(ciis map[string]*protobuf.IdentityImage) error {
-	// Make ephemeral key
-	pk, err := crypto.GenerateKey()
+func (m *Messenger) encryptIdentityImagesWithContactPubKeys(iis map[string]*protobuf.IdentityImage) error {
+	// Make AES key
+	AESKey := make([]byte, 32)
+	_, err := crand.Read(AESKey)
 	if err != nil {
 		return err
 	}
 
-	// Marshal the ephemeral private key into bytes
-	mpk, err := x509.MarshalECPrivateKey(pk)
-	if err != nil {
-		return err
-	}
-
-	for _, ii := range ciis {
-		// Encrypt image payloads with the ephemeral public key
-		encryptedPayload, err := ecies.Encrypt(crand.Reader, ecies.ImportECDSAPublic(&pk.PublicKey), ii.Payload, nil, nil)
+	for _, ii := range iis {
+		// Encrypt image payload with the AES key
+		encryptedPayload, err := common.Encrypt(ii.Payload, AESKey, crand.Reader)
 		if err != nil {
 			return err
 		}
 
 		// Overwrite the unencrypted payload with the newly encrypted payload
 		ii.Payload = encryptedPayload
+		ii.Encrypted = true
 		for _, c := range m.allContacts {
 			if !c.IsAdded() {
 				continue
@@ -819,15 +815,62 @@ func (m *Messenger) encryptIdentityImagesWithContactPubKeys(ciis map[string]*pro
 			if err != nil {
 				return err
 			}
-
-			// Encrypt the marshalled ephemeral private key with the contact's public key
-			empk, err := ecies.Encrypt(crand.Reader, ecies.ImportECDSAPublic(pubK), mpk, nil, nil)
+			// Generate a Diffie-Helman (DH) between the sender private key and the recipient's public key
+			sharedKey, err := common.MakeECDHSharedKey(m.identity, pubK)
 			if err != nil {
 				return err
 			}
 
-			// Append the the encrypted private key to the IdentityImage's EncryptionKeys slice.
-			ii.EncryptionKeys = append(ii.EncryptionKeys, empk)
+			// Encrypt the main AES key with AES encryption using the DH key
+			eAESKey, err := common.Encrypt(AESKey, sharedKey, crand.Reader)
+			if err != nil {
+				return err
+			}
+
+			// Append the the encrypted main AES key to the IdentityImage's EncryptionKeys slice.
+			ii.EncryptionKeys = append(ii.EncryptionKeys, eAESKey)
+		}
+	}
+
+	return nil
+}
+
+func (m *Messenger) decryptIdentityImagesWithIdentityPrivateKey(iis map[string]*protobuf.IdentityImage, senderPubKey *ecdsa.PublicKey) error {
+image:
+	for _, ii := range iis {
+		for _, empk := range ii.EncryptionKeys {
+			// Generate a Diffie-Helman (DH) between the recipient's private key and the sender's public key
+			sharedKey, err := common.MakeECDHSharedKey(m.identity, senderPubKey)
+			if err != nil {
+				return err
+			}
+
+			// Decrypt the main encryption AES key with AES encryption using the DH key
+			dAESKey, err := common.Decrypt(empk, sharedKey)
+			if err != nil {
+				if err.Error() == "cipher: message authentication failed" {
+					continue
+				}
+				return err
+			}
+			if dAESKey == nil{
+				return errors.New("decrypting the payload encryption key resulted in no error and a nil key")
+			}
+
+			// Decrypt the payload with the newly decrypted main encryption AES key
+			payload, err := common.Decrypt(ii.Payload, dAESKey)
+			if err != nil {
+				return err
+			}
+			if payload == nil {
+				// TODO should this be a logger warn? A payload could theoretically be validly empty
+				return errors.New("decrypting the payload resulted in no error and a nil payload")
+			}
+
+			// Overwrite the payload with the decrypted data
+			ii.Payload = payload
+			ii.Encrypted = false // TODO handle the encryption state in the consuming code
+			continue image
 		}
 	}
 
