@@ -5,6 +5,7 @@ import (
 
 	"go.uber.org/zap"
 
+	"github.com/status-im/status-go/appdatabase/migrations"
 	"github.com/status-im/status-go/multiaccounts"
 	"github.com/status-im/status-go/protocol/common"
 	"github.com/status-im/status-go/protocol/communities"
@@ -40,6 +41,7 @@ type config struct {
 	// The database instance has a higher priority.
 	dbConfig            dbConfig
 	db                  *sql.DB
+	afterDbCreatedHooks []Option
 	multiAccount        *multiaccounts.Database
 	mailserversDatabase *mailservers.Database
 	account             *multiaccounts.Account
@@ -98,6 +100,15 @@ func WithVerifyTransactionClient(client EthClient) Option {
 func WithDatabase(db *sql.DB) Option {
 	return func(c *config) error {
 		c.db = db
+		return nil
+	}
+}
+
+func WithToplevelDatabaseMigrations() Option {
+	return func(c *config) error {
+		c.afterDbCreatedHooks = append(c.afterDbCreatedHooks, func(c *config) error {
+			return migrations.Migrate(c.db)
+		})
 		return nil
 	}
 }
