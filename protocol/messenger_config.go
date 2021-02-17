@@ -2,6 +2,9 @@ package protocol
 
 import (
 	"database/sql"
+	"encoding/json"
+	"github.com/status-im/status-go/multiaccounts/accounts"
+	"github.com/status-im/status-go/params"
 
 	"go.uber.org/zap"
 
@@ -108,6 +111,25 @@ func WithToplevelDatabaseMigrations() Option {
 	return func(c *config) error {
 		c.afterDbCreatedHooks = append(c.afterDbCreatedHooks, func(c *config) error {
 			return migrations.Migrate(c.db)
+		})
+		return nil
+	}
+}
+
+func WithAppSettings(s accounts.Settings, nc params.NodeConfig) Option {
+	return func(c *config) error {
+		c.afterDbCreatedHooks = append(c.afterDbCreatedHooks, func(c *config) error {
+			if s.Networks == nil {
+				networks := new(json.RawMessage)
+				if err := networks.UnmarshalJSON([]byte("net")); err != nil {
+					return err
+				}
+
+				s.Networks = networks
+			}
+
+			sDB := accounts.NewDB(c.db)
+			return sDB.CreateSettings(s, nc)
 		})
 		return nil
 	}

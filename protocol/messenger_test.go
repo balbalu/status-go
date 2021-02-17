@@ -6,6 +6,8 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"github.com/status-im/status-go/multiaccounts/accounts"
+	"github.com/status-im/status-go/params"
 	"io/ioutil"
 	"math/big"
 	"strconv"
@@ -13,7 +15,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/davecgh/go-spew/spew"
 	"github.com/google/uuid"
 	_ "github.com/mutecomm/go-sqlcipher" // require go-sqlcipher that overrides default implementation
 	"github.com/stretchr/testify/suite"
@@ -133,6 +134,7 @@ func newMessengerWithKey(shh types.Waku, privateKey *ecdsa.PrivateKey, logger *z
 		WithAccount(iai.ToMultiAccount()),
 		WithDatasync(),
 		WithToplevelDatabaseMigrations(),
+		WithAppSettings(accounts.Settings{}, params.NodeConfig{}),
 	}
 
 	options = append(options, extraOptions...)
@@ -2569,8 +2571,6 @@ func (s *MessengerSuite) TestChatIdentity() {
 	s.Require().NoError(err)
 
 	s.Require().Exactly(len(iis), len(ci.Images))
-
-	spew.Dump(ci, len(ci.Images))
 }
 
 func (s *MessengerSuite) TestEncryptDecryptIdentityImagesWithContactPubKeys() {
