@@ -2578,7 +2578,7 @@ func (s *MessengerSuite) TestEncryptDecryptIdentityImagesWithContactPubKeys() {
 	lgPayload := "hello large image"
 
 	ci := protobuf.ChatIdentity{
-		Clock:  uint64(time.Now().Unix()),
+		Clock: uint64(time.Now().Unix()),
 		Images: map[string]*protobuf.IdentityImage{
 			"small": {
 				Payload: []byte(smPayload),
