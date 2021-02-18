@@ -74,7 +74,7 @@ image:
 				}
 				return err
 			}
-			if dAESKey == nil{
+			if dAESKey == nil {
 				return errors.New("decrypting the payload encryption key resulted in no error and a nil key")
 			}
 
@@ -97,4 +97,3 @@ image:
 
 	return nil
 }
-

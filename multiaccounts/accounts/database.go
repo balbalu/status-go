@@ -114,7 +114,7 @@ type Settings struct {
 	SendPushNotifications bool `json:"send-push-notifications?,omitempty"`
 	Appearance            uint `json:"appearance"`
 	// ProfilePicturesShowTo indicates to whom the user shows their profile picture to (contacts, everyone)
-	ProfilePicturesShowTo          uint             `json:"profile-pictures-show-to"`
+	ProfilePicturesShowTo uint `json:"profile-pictures-show-to"`
 	// ProfilePicturesVisibility indicates who we want to see profile pictures of (contacts, everyone or none)
 	ProfilePicturesVisibility      uint             `json:"profile-pictures-visibility"`
 	UseMailservers                 bool             `json:"use-mailservers?"`
