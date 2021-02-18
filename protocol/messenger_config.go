@@ -3,13 +3,13 @@ package protocol
 import (
 	"database/sql"
 	"encoding/json"
-	"github.com/status-im/status-go/multiaccounts/accounts"
-	"github.com/status-im/status-go/params"
 
 	"go.uber.org/zap"
 
 	"github.com/status-im/status-go/appdatabase/migrations"
 	"github.com/status-im/status-go/multiaccounts"
+	"github.com/status-im/status-go/multiaccounts/accounts"
+	"github.com/status-im/status-go/params"
 	"github.com/status-im/status-go/protocol/common"
 	"github.com/status-im/status-go/protocol/communities"
 	"github.com/status-im/status-go/protocol/protobuf"
