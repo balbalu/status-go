@@ -7,6 +7,8 @@ import (
 	"database/sql"
 	"encoding/hex"
 	"fmt"
+	"github.com/status-im/status-go/appmetrics"
+	"github.com/status-im/status-go/protocol/anonmetrics"
 	"io/ioutil"
 	"math"
 	"math/rand"
@@ -84,6 +86,8 @@ type Messenger struct {
 	processor                  *common.MessageProcessor
 	handler                    *MessageHandler
 	ensVerifier                *ens.Verifier
+	anonMetricsClient          *anonmetrics.Client
+	anonMetricsServer          *anonmetrics.Server
 	pushNotificationClient     *pushnotificationclient.Client
 	pushNotificationServer     *pushnotificationserver.Server
 	communitiesManager         *communities.Manager
@@ -255,6 +259,22 @@ func NewMessenger(
 		return nil, errors.Wrap(err, "failed to create messageProcessor")
 	}
 
+	// Initialise anon metrics client
+	var anonMetricsClient *anonmetrics.Client
+	if c.anonMetricsClientConfig != nil && c.anonMetricsClientConfig.ShouldSend {
+		anonMetricsClient = new(anonmetrics.Client)
+		anonMetricsClient.Config = c.anonMetricsClientConfig
+		anonMetricsClient.Identity = identity
+		anonMetricsClient.DB = appmetrics.NewDB(database)
+		anonMetricsClient.Logger = logger.Named("anon metrics client")
+	}
+
+	// Initialise anon metrics server
+	var anonMetricsServer *anonmetrics.Server
+	if c.anonMetricsServerConfig != nil && c.anonMetricsServerConfig.Enabled {
+		anonMetricsServer = new(anonmetrics.Server)
+	}
+
 	// Initialize push notification server
 	var pushNotificationServer *pushnotificationserver.Server
 	if c.pushNotificationServerConfig != nil && c.pushNotificationServerConfig.Enabled {
@@ -296,6 +316,8 @@ func NewMessenger(
 		encryptor:                  encryptionProtocol,
 		processor:                  processor,
 		handler:                    handler,
+		anonMetricsClient:          anonMetricsClient,
+		anonMetricsServer:          anonMetricsServer,
 		pushNotificationClient:     pushNotificationClient,
 		pushNotificationServer:     pushNotificationServer,
 		communitiesManager:         communitiesManager,
