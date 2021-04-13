@@ -273,6 +273,8 @@ func NewMessenger(
 	var anonMetricsServer *anonmetrics.Server
 	if c.anonMetricsServerConfig != nil && c.anonMetricsServerConfig.Enabled {
 		anonMetricsServer = new(anonmetrics.Server)
+		anonMetricsServer.Config = c.anonMetricsServerConfig
+		anonMetricsServer.Logger = logger.Named("anon metrics server")
 	}
 
 	// Initialize push notification server
