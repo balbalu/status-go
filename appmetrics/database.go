@@ -4,7 +4,6 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
-
 	"strings"
 
 	"github.com/xeipuuv/gojsonschema"
@@ -128,13 +127,13 @@ func (db *Database) SaveAppMetrics(appMetrics []AppMetric, sessionID string) (er
 		_ = tx.Rollback()
 	}()
 
-	insert, err = tx.Prepare("INSERT INTO app_metrics (event, value, app_version, operating_system, session_id) VALUES (?, ?, ?, ?, ?)")
+	insert, err = tx.Prepare("INSERT INTO app_metrics (event, value, app_version, operating_system, session_id, processed) VALUES (?, ?, ?, ?, ?, ?)")
 	if err != nil {
 		return err
 	}
 
 	for _, metric := range appMetrics {
-		_, err = insert.Exec(metric.Event, metric.Value, metric.AppVersion, metric.OS, sessionID)
+		_, err = insert.Exec(metric.Event, metric.Value, metric.AppVersion, metric.OS, sessionID, metric.Processed)
 		if err != nil {
 			return
 		}
@@ -142,19 +141,18 @@ func (db *Database) SaveAppMetrics(appMetrics []AppMetric, sessionID string) (er
 	return
 }
 
-func (db *Database) GetAppMetrics(limit int, offset int) (appMetrics []AppMetric, err error) {
-	rows, err := db.db.Query("SELECT event, value, app_version, operating_system, session_id, created_at FROM app_metrics LIMIT ? OFFSET ?", limit, offset)
-
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
+func (db *Database) getFromRows(rows *sql.Rows)(appMetrics []AppMetric, err error) {
 	for rows.Next() {
 		metric := AppMetric{}
-		err := rows.Scan(
-			&metric.Event, &metric.Value,
-			&metric.AppVersion, &metric.OS,
-			&metric.SessionID, &metric.CreatedAt,
+		err = rows.Scan(
+			&metric.ID,
+			&metric.Event,
+			&metric.Value,
+			&metric.AppVersion,
+			&metric.OS,
+			&metric.SessionID,
+			&metric.CreatedAt,
+			&metric.Processed,
 		)
 		if err != nil {
 			return nil, err
@@ -162,4 +160,79 @@ func (db *Database) GetAppMetrics(limit int, offset int) (appMetrics []AppMetric
 		appMetrics = append(appMetrics, metric)
 	}
 	return appMetrics, nil
+}
+
+func (db *Database) GetAppMetrics(limit int, offset int) ([]AppMetric, error) {
+	rows, err := db.db.Query("SELECT id, event, value, app_version, operating_system, session_id, created_at, processed FROM app_metrics LIMIT ? OFFSET ?", limit, offset)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	return db.getFromRows(rows)
+}
+
+func (db *Database) GetUnprocessed() ([]AppMetric, error) {
+	rows, err := db.db.Query("SELECT id, event, value, app_version, operating_system, session_id, created_at, processed FROM app_metrics WHERE processed IS ? ORDER BY session_id ASC, created_at ASC", false)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	return db.getFromRows(rows)
+}
+
+func (db *Database) SetToProcessedByIDs(ids []int) (err error) {
+	var (
+		tx     *sql.Tx
+		update *sql.Stmt
+	)
+
+	// start txn
+	tx, err = db.db.Begin()
+	if err != nil {
+		return err
+	}
+
+	defer func() {
+		if err == nil {
+			err = tx.Commit()
+			return
+		}
+		_ = tx.Rollback()
+	}()
+
+	// Generate prepared statement IN list
+	in := "("
+	for i := 0; i < len(ids); i++ {
+		in += "?,"
+	}
+	in = in[:len(in)-1]+")"
+
+	update, err = tx.Prepare("UPDATE app_metrics SET processed = 1 WHERE id IN " + in)
+	if err != nil {
+		return err
+	}
+
+	// Convert the ids into Stmt.Exec compatible variadic
+	args := make([]interface{}, 0, len(ids))
+	for _, id := range ids {
+		args = append(args, id)
+	}
+
+	_, err = update.Exec(args...)
+	if err != nil {
+			return
+		}
+	return
+}
+
+func GetAppMetricsIDs(appMetrics []AppMetric) []int {
+	var ids []int
+
+	for _, am := range appMetrics {
+		ids = append(ids, am.ID)
+	}
+
+	return ids
 }
