@@ -79,6 +79,16 @@ func (cm *contactMap) Delete(contactID string) {
 	cm.sm.Delete(contactID)
 }
 
+func (im *contactMap) Len() int {
+	count := 0
+	im.Range(func(contactID string, contact *Contact) (shouldContinue bool) {
+		count++
+		return true
+	})
+
+	return count
+}
+
 /*
 |--------------------------------------------------------------------------
 | systemMessageTranslationsMap

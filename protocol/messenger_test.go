@@ -2600,7 +2600,7 @@ func (s *MessengerSuite) TestEncryptDecryptIdentityImagesWithContactPubKeys() {
 		s.Require().NoError(err)
 
 		contact.SystemTags = append(contact.SystemTags, contactAdded)
-		s.m.allContacts[contact.ID] = contact
+		s.m.allContacts.Store(contact.ID, contact)
 	}
 
 	// Test EncryptIdentityImagesWithContactPubKeys
@@ -2608,7 +2608,7 @@ func (s *MessengerSuite) TestEncryptDecryptIdentityImagesWithContactPubKeys() {
 	s.Require().NoError(err)
 
 	for _, ii := range ci.Images {
-		s.Require().Equal(len(s.m.allContacts), len(ii.EncryptionKeys))
+		s.Require().Equal(s.m.allContacts.Len(), len(ii.EncryptionKeys))
 	}
 	s.Require().NotEqual([]byte(smPayload), ci.Images["small"].Payload)
 	s.Require().NotEqual([]byte(lgPayload), ci.Images["large"].Payload)
@@ -2625,7 +2625,7 @@ func (s *MessengerSuite) TestEncryptDecryptIdentityImagesWithContactPubKeys() {
 	s.Require().False(ci.Images["large"].Encrypted)
 
 	// RESET Messenger identity, Contacts and IdentityImage.EncryptionKeys
-	s.m.allContacts = nil
+	s.m.allContacts = new(contactMap)
 	ci.Images["small"].EncryptionKeys = nil
 	ci.Images["large"].EncryptionKeys = nil
 
