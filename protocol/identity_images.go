@@ -28,7 +28,7 @@ func EncryptIdentityImagesWithContactPubKeys(iis map[string]*protobuf.IdentityIm
 		// Overwrite the unencrypted payload with the newly encrypted payload
 		ii.Payload = encryptedPayload
 		ii.Encrypted = true
-		m.allContacts.Range(func(contactID string, contact *Contact) (shouldContinue bool){
+		m.allContacts.Range(func(contactID string, contact *Contact) (shouldContinue bool) {
 			if !contact.IsAdded() {
 				return true
 			}
